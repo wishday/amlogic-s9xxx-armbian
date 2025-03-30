@@ -1,5 +1,5 @@
 name: "Rebuild Armbian and Kernel"
-author: "https://github.com/ophub/amlogic-s9xxx-armbian"
+author: "https://github.com/wishday/amlogic-s9xxx-armbian"
 description: "Support Amlogic, Rockchip and Allwinner boxes."
 inputs:
   # Select build target
