@@ -27,8 +27,9 @@ sudo apt-get install -y $(cat compile-kernel/tools/script/ubuntu2204-build-armbi
 
 3. Go to the `~/amlogic-s9xxx-armbian` root directory, and then run `sudo ./recompile -k 5.15.100` or other specified parameter commands to compile the kernel. The script will automatically download and install the compilation environment and kernel source code, and make all settings. The packaged kernel files are saved in the `compile-kernel/output` directory.
 
-
 - ### Running on the Armbian system
+
+You can compile the kernel in the official [Armbian](https://github.com/ophub/amlogic-s9xxx-armbian/releases) system, or run the Armbian system in a [Docker](https://hub.docker.com/u/ophub) container on an Arm64-based Ubuntu/Debian system to compile the kernel—the compilation method is the same. The method for creating the Docker image of the Armbian system can refer to the [armbian_docker](./tools/script/docker) build script.
 
 1. Update local compilation environment and configuration files: `armbian-kernel -u`
 
@@ -63,7 +64,7 @@ sudo apt-get install -y $(cat compile-kernel/tools/script/ubuntu2204-build-armbi
 
 1. In the [Action](https://github.com/ophub/amlogic-s9xxx-armbian/actions) page, select ***`Compile the kernel`*** and click the ***`Run workflow`*** button to compile.
 
-2. See the use of the template [compile-kernel.yml](../.github/workflows/compile-kernel.yml). The code is as follows:
+2. See the use of the template [compile-kernel-on-a-server.yml](../.github/workflows/compile-kernel-on-a-server.yml). The code is as follows:
 
 ```yaml
 - name: Compile the kernel

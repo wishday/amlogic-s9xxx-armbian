@@ -473,9 +473,10 @@ unmount_armbian() {
     cd ${current_path}
 
     sync && sleep 3
-    umount ${tag_rootfs}/dev/fd 2>/dev/null
     umount ${tag_rootfs}/dev/pts 2>/dev/null
-    umount ${tag_rootfs}/dev 2>/dev/null
+    umount -R ${tag_rootfs}/dev 2>/dev/null
+    umount ${tag_rootfs}/run 2>/dev/null
+    umount ${tag_rootfs}/sys 2>/dev/null
     umount ${tag_rootfs}/proc 2>/dev/null
     umount ${tag_rootfs}/boot 2>/dev/null
     umount ${tag_rootfs} 2>/dev/null
@@ -501,17 +502,19 @@ chroot_armbian() {
     mount_try ${loop_armbian}p2 ${tag_rootfs}
     mount_try ${loop_armbian}p1 ${tag_rootfs}/boot
 
+    # Get Armbian PLATFORM value
     ARMBIAN_PLATFORM="$(cat ${tag_rootfs}/etc/ophub-release 2>/dev/null | grep -E "^PLATFORM=.*" | cut -d"'" -f2)"
-    echo -e "${INFO} Armbian PLATFORM: [ ${ARMBIAN_PLATFORM} ]"
+    [[ -n "${ARMBIAN_PLATFORM}" ]] && echo -e "${INFO} Armbian PLATFORM: [ ${ARMBIAN_PLATFORM} ]"
 
     echo -e "${INFO} Copy the kernel files to the armbian system..."
     # Remove current system files for /boot
     rm -f ${tag_rootfs}/boot/{config-*,initrd.img-*,System.map-*,vmlinuz-*,uInitrd*,*Image}
     # Copy /boot related files into armbian system
+    [[ -d "${tag_rootfs}/boot" ]] || mkdir -p ${tag_rootfs}/boot
     cp -f ${kernel_path}/${local_kernel_path}/System.map ${tag_rootfs}/boot/System.map-${kernel_outname}
     cp -f ${kernel_path}/${local_kernel_path}/.config ${tag_rootfs}/boot/config-${kernel_outname}
     cp -f ${kernel_path}/${local_kernel_path}/arch/${SRC_ARCH}/boot/Image ${tag_rootfs}/boot/vmlinuz-${kernel_outname}
-    if [[ "${ARMBIAN_PLATFORM}" == "rockchip" || "${ARMBIAN_PLATFORM}" == "allwinner" ]]; then
+    if [[ -z "${ARMBIAN_PLATFORM}" || "${ARMBIAN_PLATFORM}" =~ ^(rockchip|allwinner)$ ]]; then
         cp -f ${tag_rootfs}/boot/vmlinuz-${kernel_outname} ${tag_rootfs}/boot/Image
     else
         cp -f ${tag_rootfs}/boot/vmlinuz-${kernel_outname} ${tag_rootfs}/boot/zImage
@@ -521,6 +524,7 @@ chroot_armbian() {
     # Remove current system files for /usr/lib/modules
     rm -rf ${tag_rootfs}/usr/lib/modules/*
     # Copy /usr/lib/modules related files into armbian system
+    [[ -d "${tag_rootfs}/usr/lib/modules" ]] && mkdir -p ${tag_rootfs}/usr/lib/modules
     cp -rf ${output_path}/modules/lib/modules/${kernel_outname} -t ${tag_rootfs}/usr/lib/modules
     #echo -e "${INFO} Kernel copy results in the [ ${tag_rootfs}/usr/lib/modules ] directory: \n$(ls -l ${tag_rootfs}/usr/lib/modules) \n"
 
@@ -558,22 +562,31 @@ chroot_armbian() {
         #echo -e "${INFO} The [ ${qemu_binary_arm64} ] file copy results: \n$(ls -l ${tag_rootfs}/usr/bin/${qemu_binary_arm64}) \n"
     fi
 
+    # Copy the /etc/resolv.conf file to the armbian system
+    [[ -f "/etc/resolv.conf" ]] && {
+        echo -e "${INFO} Copy the [ /etc/resolv.conf ] file to the armbian system..."
+        cp -f /etc/resolv.conf ${tag_rootfs}/etc/resolv.conf
+    }
+
     echo -e "${INFO} Copy the [ ubuntu_chroot_armbian.sh ] script to the armbian system..."
     cp -f ${script_path}/ubuntu_chroot_armbian.sh ${tag_rootfs}/root
     chmod +x ${tag_rootfs}/root/ubuntu_chroot_armbian.sh
     #echo -e "${INFO} Kernel copy results in the [ ${tag_rootfs}/root ] directory: \n$(ls -l ${tag_rootfs}/root) \n"
 
     # Enter the armbian system to generate /boot/uInitrd-${kernel_outname} file
-    echo -e "${STEPS} Enter the chroot Armbian system..."
+    echo -e "${STEPS} Start mounting the armbian system..."
+    [[ -d "${tag_rootfs}/dev/pts" ]] || mkdir -p ${tag_rootfs}/dev/pts
     mount -t proc /proc ${tag_rootfs}/proc
+    mount -t sysfs /sys ${tag_rootfs}/sys
+    mount -t devpts /dev/pts ${tag_rootfs}/dev/pts
     mount --bind /dev ${tag_rootfs}/dev
-    mount --bind /dev/pts ${tag_rootfs}/dev/pts
-    mount --bind /proc/$$/fd ${tag_rootfs}/dev/fd
+    mount --bind /run ${tag_rootfs}/run
     chmod 0666 ${tag_rootfs}/dev/null
     sync && sleep 3
 
     # Always unmount armbian on exit
     trap unmount_armbian SIGINT
+    echo -e "${INFO} Entering the chroot environment, please wait..."
     chroot ${tag_rootfs} /bin/bash -c "/root/ubuntu_chroot_armbian.sh ${kernel_outname}"
     if [[ "${?}" -ne "0" || ! -f "${tag_rootfs}/boot/uInitrd-${kernel_outname}" ]]; then
         unmount_armbian
@@ -836,6 +849,7 @@ echo -e "${INFO} Server running on Ubuntu: [ Release: ${host_release} / Host: ${
 [[ "$(id -u)" == "0" ]] || error_msg "Please run this script as root: [ sudo ./${0} ]"
 [[ "x86_64 aarch64" == *"${arch_info}"* ]] || error_msg "This script is only supported on the x86_64 and aarch64 platforms."
 
+echo -e "${INFO} Using the current system to compile the kernel."
 # Initialize variables
 init_var "${@}"
 # Check and install the toolchain
@@ -852,6 +866,8 @@ echo -e "${INFO} Kernel Package: [ ${package_list} ]"
 echo -e "${INFO} kernel signature: [ ${custom_name} ]"
 echo -e "${INFO} Latest kernel version: [ ${auto_kernel} ]"
 echo -e "${INFO} kernel initrd compress: [ ${compress_format} ]"
+echo -e "${INFO} Delete source: [ ${delete_source} ]"
+echo -e "${INFO} Silent log: [ ${silent_log} ]"
 echo -e "${INFO} Kernel List: [ $(echo ${build_kernel[@]} | xargs) ] \n"
 
 # Loop to compile the kernel

@@ -85,7 +85,7 @@ kernel_repo="https://github.com/wishday/kernel"
 default_tags="stable"
 kernel_usage=""
 # Set the list of kernels used by default(Selectable version)
-stable_kernel=("6.1.y" "6.12.y")
+stable_kernel=("5.15.y" "6.1.y")
 flippy_kernel=(${stable_kernel[@]})
 dev_kernel=(${stable_kernel[@]})
 beta_kernel=(${stable_kernel[@]})
@@ -104,7 +104,7 @@ build_board="all"
 
 # Set Armbian size (Unit: MiB, boot_mb >= 256, root_mb >= 2048)
 boot_mb="512"
-root_mb="2560"
+root_mb="3000"
 # Set ROOTFS partition file system type, options: [ ext4 / btrfs ]
 rootfs_type="ext4"
 # Set Armbian OS type (server / desktop)
@@ -726,9 +726,12 @@ make_image() {
             dd if="${bootloader_path}/${BOOTLOADER_IMG}" of="${loop_new}" conv=fsync,notrunc bs=512 seek=64 2>/dev/null
             dd if="${bootloader_path}/${MAINLINE_UBOOT}" of="${loop_new}" conv=fsync,notrunc bs=512 seek=16384 2>/dev/null
             #echo -e "${INFO} 02. For [ ${board} ] write bootloader: ${MAINLINE_UBOOT}"
+        elif [[ "${BOOTLOADER_IMG}" == "u-boot-rockchip.bin" && -f "${bootloader_path}/${BOOTLOADER_IMG}" ]]; then
+            dd if="${bootloader_path}/${BOOTLOADER_IMG}" of="${loop_new}" conv=fsync,notrunc seek=64 2>/dev/null
+            #echo -e "${INFO} 03. For [ ${board} ] write bootloader: ${BOOTLOADER_IMG}"
         elif [[ -n "${BOOTLOADER_IMG}" && -f "${bootloader_path}/${BOOTLOADER_IMG}" ]]; then
             dd if="${bootloader_path}/${BOOTLOADER_IMG}" of="${loop_new}" conv=fsync,notrunc bs=512 skip=64 seek=64 2>/dev/null
-            #echo -e "${INFO} 03. For [ ${board} ] write bootloader: ${BOOTLOADER_IMG}"
+            #echo -e "${INFO} 04. For [ ${board} ] write bootloader: ${BOOTLOADER_IMG}"
         fi
     }
 
@@ -1006,6 +1009,7 @@ refactor_rootfs() {
     [[ -f "${ssh_config}" ]] && {
         sed -i "s|^#*Port .*|Port 22|g" ${ssh_config}
         sed -i "s|^#*PermitRootLogin .*|PermitRootLogin yes|g" ${ssh_config}
+        sed -i "s|^#*PasswordAuthentication .*|PasswordAuthentication yes|g" ${ssh_config}
     }
 
     # Adjust the default timeout for service start/stop
